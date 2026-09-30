@@ -1,0 +1,9 @@
+.vscode/
+.terraform/
+.terraform.lock.hcl
+.env
+__pycache__/
+dist/
+.pytest_cache/
+.venv/
+.coverage
