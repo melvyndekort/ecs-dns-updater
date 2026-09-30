@@ -36,6 +36,12 @@ no ports/volumes with the primary container. It exits 0 on success/no-op
 and non-zero on failure — ECS will show the container as stopped, which is
 expected and does not affect the primary container's health.
 
+The image is published multi-arch (`linux/amd64` and `linux/arm64`), so it
+works in both x86_64 and ARM64 Fargate task definitions. Note that
+`essential = false` only covers *runtime* failures: if the image cannot be
+pulled at all, ECS fails the whole task before any container starts, taking
+the primary container down with it.
+
 ## Related repositories
 
 - `~/src/melvyndekort/minecraft-server` — original consumer
