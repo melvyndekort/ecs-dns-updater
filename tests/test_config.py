@@ -29,15 +29,23 @@ def test_from_env_defaults(monkeypatch):
     assert config.record_name == "hermes.mdekort.nl"
     assert config.ecs_cluster == "my-cluster"
     assert config.ecs_service == "my-service"
-    assert config.update_ipv4 is True
-    assert config.update_ipv6 is False
+    assert config.record_types == ("A",)
+    assert config.ttl == 300
+
+
+def test_from_env_custom_ttl(monkeypatch):
+    _env(monkeypatch, DNS_TTL="120")
+    assert Config.from_env().ttl == 120
 
 
 def test_from_env_ipv6_enabled(monkeypatch):
     _env(monkeypatch, UPDATE_IPV6="true", UPDATE_IPV4="false")
-    config = Config.from_env()
-    assert config.update_ipv4 is False
-    assert config.update_ipv6 is True
+    assert Config.from_env().record_types == ("AAAA",)
+
+
+def test_from_env_both_ip_versions(monkeypatch):
+    _env(monkeypatch, UPDATE_IPV4="true", UPDATE_IPV6="true")
+    assert Config.from_env().record_types == ("A", "AAAA")
 
 
 @pytest.mark.parametrize(

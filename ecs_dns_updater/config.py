@@ -13,8 +13,8 @@ class Config:
     record_name: str
     ecs_cluster: str
     ecs_service: str
-    update_ipv4: bool = True
-    update_ipv6: bool = False
+    record_types: tuple[str, ...] = ("A",)
+    ttl: int = 300
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -42,6 +42,16 @@ class Config:
             record_name=record_name,
             ecs_cluster=cluster,
             ecs_service=service,
-            update_ipv4=os.getenv("UPDATE_IPV4", "true").lower() == "true",
-            update_ipv6=os.getenv("UPDATE_IPV6", "false").lower() == "true",
+            record_types=cls._record_types_from_env(),
+            ttl=int(os.getenv("DNS_TTL", "300")),
         )
+
+    @staticmethod
+    def _record_types_from_env() -> tuple[str, ...]:
+        """Which record types to update, from the UPDATE_IPV4/6 toggles."""
+        types = []
+        if os.getenv("UPDATE_IPV4", "true").lower() == "true":
+            types.append("A")
+        if os.getenv("UPDATE_IPV6", "false").lower() == "true":
+            types.append("AAAA")
+        return tuple(types)
