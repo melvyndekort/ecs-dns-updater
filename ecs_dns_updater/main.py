@@ -24,12 +24,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Which key of get_service_public_ips() feeds which DNS record type.
+_IP_KEY = {"A": "ipv4", "AAAA": "ipv6"}
+
 
 class CloudflareAPI:
     """Minimal Cloudflare DNS API client."""
 
-    def __init__(self, token: str) -> None:
+    def __init__(self, token: str, ttl: int = 300) -> None:
         self.token = token
+        self.ttl = ttl
         self.base_url = "https://api.cloudflare.com/client/v4"
         self.headers = {
             "Authorization": f"Bearer {token}",
@@ -74,7 +78,7 @@ class CloudflareAPI:
                     "type": record_type,
                     "name": record_name,
                     "content": ip_address,
-                    "ttl": 300,
+                    "ttl": self.ttl,
                 },
                 timeout=30,
             )
@@ -200,16 +204,14 @@ def update_dns_if_needed(config: Config) -> None:
     """Update A/AAAA records if the service's public IPs have changed."""
     ecs_client = boto3.client("ecs")
     ec2_client = boto3.client("ec2")
-    cloudflare = CloudflareAPI(config.cloudflare_token)
+    cloudflare = CloudflareAPI(config.cloudflare_token, config.ttl)
 
     ips = get_service_public_ips(
         ecs_client, ec2_client, config.ecs_cluster, config.ecs_service
     )
 
-    if config.update_ipv4:
-        _update_record(cloudflare, config, ips["ipv4"], "A")
-    if config.update_ipv6:
-        _update_record(cloudflare, config, ips["ipv6"], "AAAA")
+    for record_type in config.record_types:
+        _update_record(cloudflare, config, ips[_IP_KEY[record_type]], record_type)
 
 
 def main() -> None:

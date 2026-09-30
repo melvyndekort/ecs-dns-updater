@@ -22,6 +22,12 @@ No daemon, no polling — the next task restart reruns it.
 | `ECS_SERVICE`          | yes      |         | ECS service name                              |
 | `UPDATE_IPV4`          | no       | `true`  | Update the `A` record                         |
 | `UPDATE_IPV6`          | no       | `false` | Update the `AAAA` record                      |
+| `DNS_TTL`              | no       | `300`   | TTL in seconds written to the record          |
+
+Set `DNS_TTL` to match whatever the record is declared as in Terraform. If
+they disagree, the two fight: Terraform sets its value on apply, this
+container sets its own on the next task start, and every subsequent plan
+shows a phantom TTL change.
 
 ## Required IAM permissions
 

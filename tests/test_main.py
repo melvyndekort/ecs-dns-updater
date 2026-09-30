@@ -1,5 +1,7 @@
 """Tests for ecs_dns_updater.main."""
 
+import json
+
 import boto3
 import pytest
 import responses
@@ -22,8 +24,8 @@ def _config(**overrides):
         record_name="hermes.mdekort.nl",
         ecs_cluster="my-cluster",
         ecs_service="my-service",
-        update_ipv4=True,
-        update_ipv6=False,
+        record_types=("A",),
+        ttl=300,
     )
     base.update(overrides)
     return Config(**base)
@@ -152,10 +154,11 @@ class TestCloudflareAPI:
             f"{CF_BASE}/zones/zone123/dns_records/rec1",
             json={"success": True},
         )
-        api = CloudflareAPI("token123")
+        api = CloudflareAPI("token123", ttl=120)
         assert api.update_dns_record(
             "zone123", "rec1", "hermes.mdekort.nl", "1.2.3.4", "A"
         )
+        assert json.loads(responses.calls[0].request.body)["ttl"] == 120
 
 
 @responses.activate
@@ -216,7 +219,7 @@ def test_update_dns_if_needed_skips_when_unchanged(monkeypatch):
 
 @responses.activate
 def test_update_dns_if_needed_updates_ipv6_when_enabled(monkeypatch):
-    config = _config(update_ipv4=False, update_ipv6=True)
+    config = _config(record_types=("AAAA",))
 
     monkeypatch.setattr(
         "ecs_dns_updater.main.get_service_public_ips",
@@ -259,3 +262,33 @@ def test_update_dns_if_needed_no_ip_skips_gracefully(monkeypatch):
     # No responses registered - would raise ConnectionError if a request
     # were attempted, proving the "no IP" path makes no network calls.
     update_dns_if_needed(config)
+
+
+@responses.activate
+def test_update_dns_if_needed_uses_configured_ttl(monkeypatch):
+    """The Config's ttl reaches the Cloudflare payload, not a hardcoded value."""
+    config = _config(ttl=120)
+
+    monkeypatch.setattr(
+        "ecs_dns_updater.main.get_service_public_ips",
+        lambda ecs_client, ec2_client, cluster, service: {
+            "ipv4": "34.244.76.91",
+            "ipv6": None,
+        },
+    )
+    monkeypatch.setattr("boto3.client", lambda name: object())
+
+    responses.add(
+        responses.GET,
+        f"{CF_BASE}/zones/zone123/dns_records",
+        json={"success": True, "result": [{"id": "rec1", "content": "1.1.1.1"}]},
+    )
+    responses.add(
+        responses.PUT,
+        f"{CF_BASE}/zones/zone123/dns_records/rec1",
+        json={"success": True},
+    )
+
+    update_dns_if_needed(config)
+
+    assert json.loads(responses.calls[1].request.body)["ttl"] == 120
